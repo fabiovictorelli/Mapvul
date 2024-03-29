@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Mon Mar 18 16:07:24 EDT 2024
+# Copyright (C) 2024 fabiovictorelli@ucf.edu 
+#
+# License
+# -------
+# This program is free software, GPL version 2 applies. You can redistribute 
+# it, and/or modify it, under the terms of the GNU General Public License v2.
+#
+# This tool may be used for legal purposes only. Users take full responsibility
+# for any actions performed using this tool. The author accepts no liability
+# for damage caused by this tool. If you do not accept these condition then
+# you are prohibited from using this tool.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY. See the GNU General Public License for more details.
+#
+# You are encouraged to send comments, improvements or suggestions to
+# me at fabiovictorelli@ucf.edu
+# 
+# Description:
+# ------------
+# mapvul is a auditing tool that try to find vulnerabilities at ALL valid and Nearby 
+# IPs of a given domain or IP that may allow attackers to escalate access.
+#
+# It is intended to be run by security auditors and pentetration testers 
+# against systems they have been engaged to assess, and also by system 
+# administrators who want to check for "obvious" misconfigurations. 
+#
+# Ensure that you have the appropriate legal permission before running it
+# someone else's domain.
+#
+# First mapvul runs fierce --range a.b.c.0/24 --dns-server 8.8.8.8, find all valid IPs.
+# after runs nmap with options -F (Fast) or --script vuln (deeper) for each IP found.
+#
+# Dependences: packages fierce & nmap
+#
+# Usage:  mapvul [options] [ domain | ip ]
+#
+# TODO List
+# ---------
+# There's still plenty that this script doesn't do...
+# -l 		nampa runs at local network (done
+# -i IP  	nmap runs straight at IP, don't run fierce. (done)
+#      ***      try to switch fierce by fping
+# -other options  to add features to this tools
+
+
+Usage: mapvul [options] [domain | IP]
+options:
+   -f,	fast scan	   fierce first, after nmap -F domain   	* default option
+   -d,	deep scan	   fierce first, after nmap --script vuln
+   -lf, local fast scan	   no fierce, just nmap -F (Fast) for all IPs in the local network.
+   -ld, local deep scan	   no fierce, just nmap --script vuln (Slow) for all IPs in the local network.
+   -if, IP fast scan	   no fierce, just nmap -F (Fast) for a specific IP.
+   -id, IP deep scan	   no fierce, just nmap --script vuln (Slow) for a specific IP.
+   -c,	clean		   clean all temp files
+   -h,	help		   this help
+   -v,	version		   shows actual version
+
+mapvul tries to find vulnerabilities at ALL valid and Nearby IPs of a given domain or IP.
+First runs fierce --range a.b.c.0/24 --dns-server 8.8.8.8  to find all valid IPs.
+and after runs nmap with default option -F (Fast) or --script vuln (deeper scan) in all IPs.
+options -lf, -ld, -c, -h and -v don't need domain or IP.
+

@@ -1,0 +1,322 @@
+#!/usr/bin/env bash
+# Mon Mar 18 16:07:24 EDT 2024
+# Copyright (C) 2024 fabiovictorelli@ucf.edu 
+#
+# License
+# -------
+# This program is free software, GPL version 2 applies. You can redistribute 
+# it, and/or modify it, under the terms of the GNU General Public License v2.
+#
+# This tool may be used for legal purposes only. Users take full responsibility
+# for any actions performed using this tool. The author accepts no liability
+# for damage caused by this tool. If you do not accept these condition then
+# you are prohibited from using this tool.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY. See the GNU General Public License for more details.
+#
+# You are encouraged to send comments, improvements or suggestions to
+# me at fabiovictorelli@ucf.edu
+# 
+# Description:
+# ------------
+# mapvul is a auditing tool that try to find vulnerabilities at ALL valid and Nearby 
+# IPs of a given domain or IP that may allow attackers to escalate access.
+#
+# It is intended to be run by security auditors and pentetration testers 
+# against systems they have been engaged to assess, and also by system 
+# administrators who want to check for "obvious" misconfigurations. 
+#
+# Ensure that you have the appropriate legal permission before running it
+# someone else's domain.
+#
+# First mapvul runs fierce --range a.b.c.0/24 --dns-server 8.8.8.8, find all valid IPs.
+# after runs nmap with options -F (Fast) or --script vuln (deeper) for each IP found.
+#
+# Dependences: packages fierce & nmap
+#
+# Usage:  mapvul [options] [ domain | ip ]
+#
+# TODO List
+# ---------
+# There's still plenty that this script doesn't do...
+# -l 		nampa runs at local network (done
+# -i IP  	nmap runs straight at IP, don't run fierce. (done)
+#      ***      try to switch fierce by fping
+# -other options  to add features to this tools
+
+VERSION="1.04"
+TEMPFIERCEFILE=/tmp/mapvul.fierce.txt
+TEMPNMAPFILE=/tmp/mapvul.nmap.txt 
+FIERCE=/usr/bin/fierce			# package fierce must be instaled
+NMAP=/usr/bin/nmap			# package nmap must be instaled
+DNSSERVER=8.8.8.8			# using Google DNS server
+NumIpNearby=0
+OptionNmap="-F"				# Option default for nmap is -F
+
+# Function to start mapvul
+startmapvul () {
+	touch $TEMPFIERCEFILE $TEMPNMAPFILE
+}
+
+# Function to end mapvul
+endmapvul () {
+	NumCve=$(grep "CVE:CVE" $TEMPNMAPFILE 2> /dev/null | wc -l)
+	if grep "CVE:CVE" $TEMPNMAPFILE ; then
+		echo -e "\n\nWARNING!!!, found $NumCve CVE:CVE at $TEMPNMAPFILE"
+	fi
+	echo -e "\nAlso see results of fierce at $TEMPFIERCEFILE and nmap results at $TEMPNMAPFILE"
+	exit 0
+}
+
+# Function to cleaning existing temp files
+cleantempfiles () 
+{ 
+	if  test -r "$TEMPFIERCEFILE";then
+		rm $TEMPFIERCEFILE 
+	fi
+	if  test -r "$TEMPNMAPFILE";then
+		rm $TEMPNMAPFILE 
+	fi
+}
+
+# Function to show how to use mapvul
+usage ()
+{
+	echo -e "Usage: mapvul [options] [domain|IP]"
+	echo -e "\t "
+	echo -e "Try 'mapvul --help' for more information."
+	cleantempfiles
+	exit 1
+}
+
+# Function to check if dependencies and necessary packages are installed.
+test_dependencies ()
+{
+	#echo "checking for dependencies"
+	if ! test -r "$1"; then
+        	echo "Didn't found file $1!" 
+        	case "$1" in
+        		$FIERCE  )
+				echo "Package fierce must be instaled." ;;                   
+        		$NMAP  )
+				echo "Package nmap must be instaled." ;;                   
+		esac
+		cleantempfiles
+		exit 1
+	fi
+}
+
+showhelp () 
+{
+cat - <<-FIM
+Usage: mapvul [options] [domain | IP]
+options:
+   -f,	fast scan	   fierce first, after nmap -F domain   	* default option
+   -d,	deep scan	   fierce first, after nmap --script vuln
+   -lf, local fast scan	   no fierce, just nmap -F (Fast) for all IPs in the local network.
+   -ld, local deep scan	   no fierce, just nmap --script vuln (Slow) for all IPs in the local network.
+   -if, IP fast scan	   no fierce, just nmap -F (Fast) for a specific IP.
+   -id, IP deep scan	   no fierce, just nmap --script vuln (Slow) for a specific IP.
+   -c,	clean		   clean all temp files
+   -h,	help		   this help
+   -v,	version		   shows actual version
+	
+mapvul tries to find vulnerabilities at ALL valid and Nearby IPs of a given domain or IP.
+First runs fierce --range a.b.c.0/24 --dns-server 8.8.8.8  to find all valid IPs.
+and after runs nmap with default option -F (Fast) or --script vuln (deeper scan) in all IPs.
+options -lf, -ld, -c, -h and -v don't need domain or IP.
+
+More at https://github.com/fabiovictorelli/mapvul
+FIM
+}
+
+# Function to check if the domain exist 
+checkdomain () {
+	local domain=$1
+   	VALIDDOMAIN=$(host -t a $domain | grep "has address" 2> /dev/null) 
+
+	if [ -n "$VALIDDOMAIN" ]; then
+		IP=$(echo $VALIDDOMAIN | cut -d" " -f4)
+		echo "Domain:$domain, IP=$IP, Nmap Options=$OptionNmap" | tee $TEMPNMAPFILE
+	else
+		echo -e "mapvul: error \nInvalid domain $domain"
+		exit 1
+	fi	
+}
+
+# Function to check if the input is a valid domain name
+is_valid_domain() {
+    local domain=$1
+    if [[ $domain =~ ^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.[a-zA-Z]{2,}(\.[a-zA-Z]{2,})?$ ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to check if the input is a valid IP address
+is_valid_ip() {
+    local ip=$1
+    if [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+        IFS='.' read -r -a ip_parts <<< "$ip"
+        for part in "${ip_parts[@]}"; do
+            if [[ $part -gt 255 ]]; then
+                return 1
+            fi
+        done
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to check if the argument passed is a domain or an IP address
+# if it is an IP address, set global var $IP
+# if is neither a domain nor a IP, abort...
+#
+is_domain_or_ip() {
+	local arg=$1
+	if is_valid_domain "$arg"; then
+		echo "$arg could be a valid domain.."	# could be a domain
+		checkdomain $arg
+	elif is_valid_ip "$arg"; then
+		echo "$arg could be a valid IP .." # could be a IP address
+		IP=$arg
+	else
+		echo "$arg is neither a valid domain name nor a valid IP address.."
+		usage
+	fi
+}
+
+# Function to check ALL args passed ($@)
+checkargs ()
+{
+	if [ $# -eq 0 ]; then
+ 		echo "No arguments provided."; usage 
+    		exit 1
+	fi
+
+	# Check the number of arguments provided
+        case "$1" in
+        	-h | --help | -help )
+			showhelp ; exit 0 ;;                   
+                -c )
+			echo "Cleaning temp files "
+			cleantempfiles; exit 0 ;;                   
+                -v )
+			echo "mapvul: version is $VERSION"
+			cleantempfiles; exit 0 ;;                   
+                -lf )
+			echo "mapvul: running only nmap -F at local network Ips"
+			OptionNmap="-F";				# Option for nmap is -F
+			runnmap_ip_or_local "localnetwork"; endmapvul;;
+                -ld )
+			echo "mapvul: running only nmap --script vuln at local network IPs (...slow...)"
+			OptionNmap="--script vuln";			# Option for nmap is --script vuln
+			runnmap_ip_or_local "localnetwork"; endmapvul;;
+
+                -if )
+                        if test -z "$2"; then
+				echo "Missing IP, try: mapvul -if Ip_address "; usage
+                        fi
+			echo "mapvul: running only nmap -F at a specific IP=$2"
+			OptionNmap="-F";				# Option for nmap is -F
+			runnmap_ip_or_local "$2"; endmapvul;;
+                -id )
+                        if test -z "$2"; then
+				echo "Missing IP, try: mapvul -id Ip_address "; usage
+                        fi
+			echo "mapvul: running only nmap --script vuln at a specific IP=$2  (...slow...)"
+			OptionNmap="--script vuln";			# Option for nmap is --script vuln
+			runnmap_ip_or_local "$2"; endmapvul;;
+                -f)
+                        if test -z "$2"; then
+				echo "Missing domainname, try: mapvul -f domain "; usage
+                        fi
+			is_domain_or_ip $2
+			OptionNmap="-F";;			 	# Option default for nmap is -F
+		-d)
+                        if test -z "$2"; then
+				echo "Missing domainname, try: mapvul -d domain "; usage
+			fi
+			echo "mapvul: running nmap --script vuln at $2  (...slow...)"
+			is_domain_or_ip $2
+			OptionNmap="--script vuln";;			# Option for nmap is --script vuln
+		-*) echo "Invalid Option: $1"; usage;;
+                *)  echo "Checking if $1 is a domain or IP..."	 	# Lets check if $1 is a domain
+			is_domain_or_ip $1
+		       	;;
+	esac
+}
+
+# Function to run command fierce
+runfierce ()
+{ 
+	test_dependencies $FIERCE
+	SUBNET=$(echo $IP | cut -d"." -f1-3)".0/24"
+	echo "SUBNET=$SUBNET" | tee -a $TEMPNMAPFILE
+	#$FIERCE 
+	echo "running: $FIERCE --range $SUBNET --dns-server $DNSSERVER > $TEMPFIERCEFILE"
+	$FIERCE --range $SUBNET --dns-server $DNSSERVER > $TEMPFIERCEFILE
+	NumIpNearby=$(cat $TEMPFIERCEFILE | grep -v Nearby | wc -l)
+}
+
+# Function to run command nmap at a specific ip or at all ips from a local network
+runnmap_ip_or_local ()
+{ 
+	test_dependencies $NMAP
+
+	if [ $1 = "localnetwork" ]; then
+		MyIp=$(hostname -I) 
+		FirstIp=$(echo $MyIp | cut -d"." -f1-3)".1"
+		LastIp=$(echo $MyIp | cut -d"." -f1-3)".254"
+		AllIpFound=$(fping -a -r 0 -g $FirstIp $LastIp 2> /dev/null)
+		NumIpFound=$(echo "$AllIpFound" | wc -l)
+		echo -e "Found $NumIpFound Ips at my local newtork:\n$AllIpFound" | tee  $TEMPNMAPFILE
+		i=1
+		fping -a -r 0 -g $FirstIp $LastIp 2> /dev/null |
+		while read IPLOCAL 
+		do
+			echo -e "\n$i - Running nmap local $OptionNmap $IPLOCAL" | tee -a $TEMPNMAPFILE 
+			$NMAP $OptionNmap $IPLOCAL | tee -a $TEMPNMAPFILE 
+			echo "==================================================================" | tee -a $TEMPNMAPFILE
+			i=$((i+1))
+		done
+	elif is_valid_ip "$1"; then
+		IP=$1
+		echo -e "\nRunning nmap local $OptionNmap $IP" | tee $TEMPNMAPFILE 
+		$NMAP $OptionNmap $IP | tee -a $TEMPNMAPFILE 
+	else
+		echo "$1 is not a valid IP address.."
+		echo "Try:mapvul -if or id Ip_address"
+		usage
+	fi
+}
+
+# Function to run command nmap
+runnmap ()
+{ 
+	test_dependencies $NMAP
+	i=1
+	echo -e "Found $NumIpNearby Nearby IPs at fierce command" | tee -a $TEMPNMAPFILE
+	echo "mapvul: calling $NMAP for each ip found at fierce command... " | tee -a $TEMPNMAPFILE
+	# same as: cat $TEMPFIERFILE| grep -v Nearby | sed s/\'//g | sed s/\{//g | sed s/\}//g | sed s/,$//g | sed s/\ //g 
+	cat $TEMPFIERCEFILE | grep -v Nearby | sed  's/[{}'\'' ,]//g' |
+	while read line 
+	do
+		DOMAIN2=$(echo $line | cut -d":" -f2)
+		IP2=$(echo $line | cut -d":" -f1)
+		echo -e "\n$i - Running for $DOMAIN2: nmap $OptionNmap $IP2" | tee -a $TEMPNMAPFILE 
+		$NMAP $OptionNmap $IP2 | tee -a $TEMPNMAPFILE  		# Nmap FAST
+		echo "==================================================================" | tee -a $TEMPNMAPFILE
+		i=$((i+1))
+	done
+}
+
+# main
+startmapvul
+checkargs $@
+runfierce
+runnmap
+endmapvul
