@@ -49,6 +49,7 @@ VERSION="1.04"
 TEMPFIERCEFILE=/tmp/mapvul.fierce.txt
 TEMPNMAPFILE=/tmp/mapvul.nmap.txt 
 FIERCE=/usr/bin/fierce			# package fierce must be instaled
+FPING=/usr/bin/fping			# package fping must be instaled
 NMAP=/usr/bin/nmap			# package nmap must be instaled
 DNSSERVER=8.8.8.8			# using Google DNS server
 NumIpNearby=0
@@ -99,6 +100,8 @@ test_dependencies ()
         	case "$1" in
         		$FIERCE  )
 				echo "Package fierce must be instaled." ;;                   
+        		$FPING  )
+				echo "Package fping must be instaled." ;;                   
         		$NMAP  )
 				echo "Package nmap must be instaled." ;;                   
 		esac
@@ -271,11 +274,12 @@ runnmap_ip_or_local ()
 		MyIp=$(hostname -I) 
 		FirstIp=$(echo $MyIp | cut -d"." -f1-3)".1"
 		LastIp=$(echo $MyIp | cut -d"." -f1-3)".254"
-		AllIpFound=$(fping -a -r 0 -g $FirstIp $LastIp 2> /dev/null)
+		test_dependencies $FPING
+		AllIpFound=$($FPING -a -r 0 -g $FirstIp $LastIp 2> /dev/null)
 		NumIpFound=$(echo "$AllIpFound" | wc -l)
 		echo -e "Found $NumIpFound Ips at my local newtork:\n$AllIpFound" | tee  $TEMPNMAPFILE
 		i=1
-		fping -a -r 0 -g $FirstIp $LastIp 2> /dev/null |
+		$FPING -a -r 0 -g $FirstIp $LastIp 2> /dev/null |
 		while read IPLOCAL 
 		do
 			echo -e "\n$i - Running nmap local $OptionNmap $IPLOCAL" | tee -a $TEMPNMAPFILE 
