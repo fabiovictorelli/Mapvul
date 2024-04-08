@@ -62,7 +62,7 @@ startmapvul () {
 
 # Function to end mapvul
 endmapvul () {
-	NumCve=$(grep "CVE:CVE" $TEMPNMAPFILE 2> /dev/null | wc -l)
+	NumCve=$(grep -c "CVE:CVE" $TEMPNMAPFILE 2> /dev/null )
 	if grep "CVE:CVE" $TEMPNMAPFILE ; then
 		echo -e "\n\nWARNING!!!, found $NumCve CVE:CVE at $TEMPNMAPFILE"
 	fi
