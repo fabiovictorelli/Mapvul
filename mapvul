@@ -117,10 +117,10 @@ Usage: mapvul [options] [domain | IP]
 options:
    -f,	fast scan	   fierce first, after nmap -F domain   	* default option
    -d,	deep scan	   fierce first, after nmap --script vuln
-   -lf, local fast scan	   no fierce, just nmap -F (Fast) for all IPs in the local network.
-   -ld, local deep scan	   no fierce, just nmap --script vuln (Slow) for all IPs in the local network.
-   -if, IP fast scan	   no fierce, just nmap -F (Fast) for a specific IP.
-   -id, IP deep scan	   no fierce, just nmap --script vuln (Slow) for a specific IP.
+   -l,  local network	   no fierce, just runs nmap -F (Fast Mode) for ALL IPs in the local network.
+   -ld, local deep scan	   no fierce, just runs nmap --script vuln (Slow) for ALL IPs in the local network.
+   -i,  specific IP 	   no fierce, just runs nmap -F (Fast Mode) for a specific IP.
+   -id, IP deep scan	   no fierce, just runs nmap --script vuln (Slow) for a specific IP.
    -c,	clean		   clean all temp files
    -h,	help		   this help
    -v,	version		   shows actual version
@@ -128,7 +128,7 @@ options:
 mapvul tries to find vulnerabilities at ALL valid and Nearby IPs of a given domain or IP.
 First runs fierce --range a.b.c.0/24 --dns-server 8.8.8.8  to find all valid IPs.
 and after runs nmap with default option -F (Fast) or --script vuln (deeper scan) in all IPs.
-options -lf, -ld, -c, -h and -v don't need domain or IP.
+options -l, -ld, -c, -h and -v don't need domain or IP.
 
 More at https://github.com/fabiovictorelli/mapvul
 FIM
@@ -210,8 +210,8 @@ checkargs ()
                 -v )
 			echo "mapvul: version is $VERSION"
 			cleantempfiles; exit 0 ;;                   
-                -lf )
-			echo "mapvul: running only nmap -F at local network Ips"
+                -l )
+			echo "mapvul: running only nmap -F (Fast Mode) at local network Ips"
 			OptionNmap="-F";				# Option for nmap is -F
 			runnmap_ip_or_local "localnetwork"; endmapvul;;
                 -ld )
@@ -219,9 +219,9 @@ checkargs ()
 			OptionNmap="--script vuln";			# Option for nmap is --script vuln
 			runnmap_ip_or_local "localnetwork"; endmapvul;;
 
-                -if )
+                -i )
                         if test -z "$2"; then
-				echo "Missing IP, try: mapvul -if Ip_address "; usage
+				echo "Missing IP, try: mapvul -i Ip_address "; usage
                         fi
 			echo "mapvul: running only nmap -F at a specific IP=$2"
 			OptionNmap="-F";				# Option for nmap is -F
@@ -265,7 +265,7 @@ runfierce ()
 	NumIpNearby=$(cat $TEMPFIERCEFILE | grep -v Nearby | wc -l)
 }
 
-# Function to run command nmap at a specific ip or at all ips from a local network
+# Function to run command nmap at a specific ip or at ALL ips from a local network
 runnmap_ip_or_local ()
 { 
 	test_dependencies $NMAP
@@ -293,7 +293,7 @@ runnmap_ip_or_local ()
 		$NMAP $OptionNmap $IP | tee -a $TEMPNMAPFILE 
 	else
 		echo "$1 is not a valid IP address.."
-		echo "Try:mapvul -if or id Ip_address"
+		echo "Try:mapvul -i or id Ip_address"
 		usage
 	fi
 }
