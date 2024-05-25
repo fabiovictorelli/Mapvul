@@ -31,7 +31,7 @@
 # someone else's domain.
 #
 # First mapvul runs fierce --range a.b.c.0/24 --dns-server 8.8.8.8, find all valid IPs.
-# after runs nmap with options -F (Fast) or --script vuln (deeper) for each IP found.
+# after runs nmap with options -F (Fast Mode) or --script vuln (deeper) for each IP found.
 #
 # Dependences: packages fierce & nmap
 #
@@ -48,18 +48,18 @@
 
 Usage: mapvul [options] [domain | IP]
 options:
-   -f,	fast scan	   fierce first, after nmap -F domain   	* default option
-   -d,	deep scan	   fierce first, after nmap --script vuln
-   -lf, local fast scan	   no fierce, just nmap -F (Fast) for all IPs in the local network.
-   -ld, local deep scan	   no fierce, just nmap --script vuln (Slow) for all IPs in the local network.
-   -if, IP fast scan	   no fierce, just nmap -F (Fast) for a specific IP.
-   -id, IP deep scan	   no fierce, just nmap --script vuln (Slow) for a specific IP.
-   -c,	clean		   clean all temp files
-   -h,	help		   this help
-   -v,	version		   shows actual version
+   -f,	fast scan	      fierce first, after nmap -F domain   	* default option
+   -d,	deep scan	      fierce first, after nmap --script vuln
+   -l,   local network	   no fierce, just runs nmap -F (Fast Mode) for ALL IPs in the local network.
+   -ld,  local deep scan	no fierce, just runs nmap --script vuln (Slow) for ALL IPs in the local network.
+   -i,   specific IP 	   no fierce, just runs nmap -F (Fast Mode) for a specific IP.
+   -id,  IP deep scan	   no fierce, just runs nmap --script vuln (Slow) for a specific IP.
+   -c,	clean		         clean all temp files
+   -h,	help	            this help
+   -v,	version		      shows actual version
 
 mapvul tries to find vulnerabilities at ALL valid and Nearby IPs of a given domain or IP.
 First runs fierce --range a.b.c.0/24 --dns-server 8.8.8.8  to find all valid IPs.
-and after runs nmap with default option -F (Fast) or --script vuln (deeper scan) in all IPs.
-options -lf, -ld, -c, -h and -v don't need domain or IP.
+and after runs nmap with default option -F (Fast Mode) or --script vuln (deeper scan) in all IPs.
+options -l, -ld, -c, -h and -v don't need domain or IP.
 
